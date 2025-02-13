@@ -84,4 +84,4 @@ A planilha Excel gerada terá a seguinte estrutura:
 
 **Conclusão**
 
-Esse projeto permite que você colete editais e itens do PNCP de forma automatizada e os armazene de maneira organizada em uma planilha Excel, facilitando a análise de dados. Ele pode ser executado diariamente para garantir que os dados estejam sempre atualizados. Se precisar de mais ajustes ou tiver outras dúvidas, estou à disposição!
+Esse projeto permite que você colete editais e itens do PNCP de forma automatizada e os armazene de maneira organizada em uma planilha Excel, facilitando a análise de dados. Ele pode ser executado diariamente para garantir que os dados estejam sempre atualizados. 

@@ -6,7 +6,7 @@ import os
 # URL base da API do PNCP
 BASE_URL = "https://pncp.gov.br/pncp-consulta/v1"
 
-# Lista de modalidades corrigida (agora são strings, não números)
+# Lista de modalidades (com os códigos das modalidades de contratação)
 MODALIDADES = {
     1: "Leilão - Eletrônico",
     2: "Diálogo Competitivo",
@@ -54,15 +54,20 @@ def buscar_editais_por_modalidade(modalidade_codigo):
             "codigoModalidadeContratacao": modalidade_codigo,  # Agora utilizando o código da modalidade
             "pagina": pagina
         }
-        
+
+        print(f"Consultando: {url}")
+        print(f"Parâmetros: {params}")  # Exibe os parâmetros passados para garantir que estão corretos
+
         resposta = requests.get(url, headers=HEADERS, params=params)
 
         if resposta.status_code == 200:
             dados = resposta.json().get("contratacoes", [])
+
             if not dados:
+                print(f"Nenhum edital encontrado na página {pagina}. Encerrando busca.")
                 break  # Se não houver mais editais, encerramos a paginação
             todos_editais.extend(dados)
-            print(f"Editais encontrados para a modalidade {modalidade_codigo}: {len(dados)}")  # Exibe o número de editais encontrados
+            print(f"Editais encontrados para a modalidade {modalidade_codigo}, página {pagina}: {len(dados)}")  # Exibe o número de editais encontrados
             pagina += 1  # Passamos para a próxima página
         else:
             print(f"Erro ao buscar editais da modalidade {modalidade_codigo}, página {pagina}: {resposta.status_code} - {resposta.text}")
@@ -70,6 +75,7 @@ def buscar_editais_por_modalidade(modalidade_codigo):
 
     print(f"Total de editais encontrados para a modalidade {modalidade_codigo}: {len(todos_editais)}")  # Exibe o total de editais encontrados
     return todos_editais
+
 
 def buscar_todos_editais():
     """Itera sobre todas as modalidades e busca os editais de cada uma, incluindo paginação."""

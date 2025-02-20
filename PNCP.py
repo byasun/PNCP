@@ -85,13 +85,22 @@ def buscar_editais():
     print(f"Total de editais encontrados: {len(todos_editais)}")
     return todos_editais
 
-def salvar_em_excel(editais, nome_arquivo="C:/Temp/editais.xlsx"):
-    """Salva a lista de editais em um arquivo Excel."""
+def salvar_em_excel(editais, nome_arquivo="editais.xlsx"):
+    """Salva a lista de editais em um arquivo Excel, tratando as datas."""
     if not editais:
         print("Nenhum edital para salvar.")
         return
     
+    # Convertendo para um DataFrame do pandas
     df = pd.DataFrame(editais)
+
+    # Tratamento das colunas de data (removendo a parte de horas)
+    colunas_data = ["Data Divulgação PNCP", "Data Início Propostas", "Data Fim Propostas"]
+    for coluna in colunas_data:
+        if coluna in df.columns:
+            df[coluna] = df[coluna].astype(str).str.split("T").str[0]  # Mantém apenas a parte da data
+
+    # Salvando no arquivo Excel na raiz do projeto
     df.to_excel(nome_arquivo, index=False)
     print(f"Arquivo salvo com sucesso: {nome_arquivo}")
 

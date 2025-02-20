@@ -1,194 +1,102 @@
 import requests
-import datetime
 import pandas as pd
-import os
+from datetime import datetime, timedelta
 
-# URL base da API do PNCP
-BASE_URL = "https://pncp.gov.br/pncp-consulta/v1"
-
-# Lista de modalidades (com os códigos das modalidades de contratação)
-MODALIDADES = {
-    1: "Leilão - Eletrônico",
-    2: "Diálogo Competitivo",
-    3: "Concurso",
-    4: "Concorrência - Eletrônica",
-    5: "Concorrência - Presencial",
-    6: "Pregão - Eletrônico",
-    7: "Pregão - Presencial",
-    8: "Dispensa de Licitação",
-    9: "Inexigibilidade",
-    10: "Manifestação de Interesse",
-    11: "Pré-qualificação",
-    12: "Credenciamento",
-    13: "Leilão - Presencial"
-}
-
-# Calcula a data de D-15
-hoje = datetime.date.today()
-data_inicio = hoje - datetime.timedelta(days=15)
-data_fim = hoje
-
-# Converte as datas para o formato esperado (yyyyMMdd)
-data_inicio_str = data_inicio.strftime("%Y%m%d")
-data_fim_str = data_fim.strftime("%Y%m%d")
-
-# Nome do arquivo Excel
-NOME_ARQUIVO = "editais_com_itens.xlsx"
+# URL base da API
+BASE_URL = "https://pncp.gov.br/api/search/"
 
 # Cabeçalhos da requisição
 HEADERS = {
-    "User-Agent": "Mozilla/5.0",
-    "Accept": "application/json"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+    "Referer": "https://pncp.gov.br",
+    "Origin": "https://pncp.gov.br"
 }
 
-def buscar_editais_por_modalidade(modalidade_codigo):
-    """Busca todas as contratações publicadas nos últimos 15 dias para uma modalidade específica, paginando os resultados."""
+# Função para calcular a data limite (D-15)
+def calcular_data_limite():
+    hoje = datetime.now()
+    data_limite = hoje - timedelta(days=15)
+    return data_limite.strftime("%Y-%m-%d")
+
+def buscar_editais():
+    """Busca todos os editais disponíveis na API do PNCP."""
     todos_editais = []
-    pagina = 1  # Iniciamos na página 1
+    pagina = 1
+    tam_pagina = 100  
+    data_limite = calcular_data_limite()  
 
     while True:
-        url = f"{BASE_URL}/contratacoes/publicacao"
         params = {
-            "dataInicial": data_inicio_str,  # Agora no formato yyyyMMdd
-            "dataFinal": data_fim_str,       # Agora no formato yyyyMMdd
-            "codigoModalidadeContratacao": modalidade_codigo,  # Agora utilizando o código da modalidade
-            "pagina": pagina
+            "tipos_documento": "edital",
+            "ordenacao": "-data",
+            "pagina": pagina,
+            "tam_pagina": tam_pagina,
+            "status": "recebendo_proposta",
+            "data_publicacao_pncp__lte": data_limite  # Filtro correto para data de publicação
         }
 
-        print(f"Consultando: {url}")
-        print(f"Parâmetros: {params}")  # Exibe os parâmetros passados para garantir que estão corretos
-
-        resposta = requests.get(url, headers=HEADERS, params=params)
+        print(f"Consultando página {pagina}...")
+        resposta = requests.get(BASE_URL, headers=HEADERS, params=params)
 
         if resposta.status_code == 200:
-            dados = resposta.json().get("contratacoes", [])
+            dados_json = resposta.json()
+
+            dados = dados_json.get("items", [])
 
             if not dados:
-                print(f"Nenhum edital encontrado na página {pagina}. Encerrando busca.")
-                break  # Se não houver mais editais, encerramos a paginação
-            todos_editais.extend(dados)
-            print(f"Editais encontrados para a modalidade {modalidade_codigo}, página {pagina}: {len(dados)}")  # Exibe o número de editais encontrados
-            pagina += 1  # Passamos para a próxima página
+                print("Nenhum edital encontrado.")
+                break  
+
+            # Extração dos dados específicos de cada edital
+            for edital in dados:
+                edital_info = {
+                    "ID": edital.get("id", "N/A"),
+                    "Número": edital.get("numero", "N/A"),
+                    "Ano": edital.get("ano", "N/A"),
+                    "Número Sequencial": edital.get("numero_sequencial", "N/A"),
+                    "Órgão": edital.get("orgao_nome", "N/A"),
+                    "Unidade Compradora": edital.get("unidade_nome", "N/A"),
+                    "Município": edital.get("municipio_nome", "N/A"),
+                    "UF": edital.get("uf", "N/A"),
+                    "Modalidade da Contratação": edital.get("modalidade_licitacao_nome", "N/A"),
+                    "Amparo Legal": edital.get("amparo_legal", "N/A"),
+                    "Tipo": edital.get("tipo_nome", "N/A"),
+                    "Modo de Disputa": edital.get("modo_disputa", "N/A"),
+                    "Registro de Preço": edital.get("registro_preco", "N/A"),
+                    "Data Divulgação PNCP": edital.get("data_publicacao_pncp", "N/A"),
+                    "Situação": edital.get("situacao_nome", "N/A"),
+                    "Data Início Propostas": edital.get("data_inicio_vigencia", "N/A"),
+                    "Data Fim Propostas": edital.get("data_fim_vigencia", "N/A"),
+                    "ID Contratação PNCP": edital.get("numero_controle_pncp", "N/A"),
+                    "Fonte": "PNCP",
+                    "Objeto": edital.get("description", "N/A"),
+                    "Informação Complementar": edital.get("informacao_complementar", "N/A"),
+                    "URL": f"https://pncp.gov.br{edital.get('item_url', '')}"
+                }
+                todos_editais.append(edital_info)
+
+            print(f"Editais encontrados na página {pagina}: {len(dados)}")
+            pagina += 1  
         else:
-            print(f"Erro ao buscar editais da modalidade {modalidade_codigo}, página {pagina}: {resposta.status_code} - {resposta.text}")
+            print(f"Erro ao buscar editais: {resposta.status_code} - {resposta.text}")
             break
 
-    print(f"Total de editais encontrados para a modalidade {modalidade_codigo}: {len(todos_editais)}")  # Exibe o total de editais encontrados
+    print(f"Total de editais encontrados: {len(todos_editais)}")
     return todos_editais
 
-
-def buscar_todos_editais():
-    """Itera sobre todas as modalidades e busca os editais de cada uma, incluindo paginação."""
-    todos_editais = []
-    for codigo_modalidade in MODALIDADES:  # Agora itera pelos códigos
-        print(f"Buscando editais para a modalidade {MODALIDADES[codigo_modalidade]}")
-        editais = buscar_editais_por_modalidade(codigo_modalidade)
-        todos_editais.extend(editais)  # Junta todos os editais encontrados
+def salvar_em_excel(editais, nome_arquivo="C:/Temp/editais.xlsx"):
+    """Salva a lista de editais em um arquivo Excel."""
+    if not editais:
+        print("Nenhum edital para salvar.")
+        return
     
-    # Exibe o total de editais encontrados em todas as modalidades
-    print(f"Total de editais encontrados em todas as modalidades: {len(todos_editais)}")
-    return todos_editais
+    df = pd.DataFrame(editais)
+    df.to_excel(nome_arquivo, index=False)
+    print(f"Arquivo salvo com sucesso: {nome_arquivo}")
 
-def buscar_detalhes_edital(edital_id):
-    """Busca detalhes completos de um edital específico pelo ID."""
-    url = f"{BASE_URL}/editais/{edital_id}"
-    resposta = requests.get(url, headers=HEADERS)
+# Executa a busca
+editais = buscar_editais()
 
-    if resposta.status_code == 200:
-        return resposta.json()
-    else:
-        print(f"Erro ao buscar detalhes do edital {edital_id}: {resposta.status_code}")
-        return None
-
-def buscar_itens_edital(edital_id):
-    """Busca os itens de um edital específico pelo ID."""
-    url = f"{BASE_URL}/editais/{edital_id}/itens"
-    resposta = requests.get(url, headers=HEADERS)
-
-    if resposta.status_code == 200:
-        return resposta.json().get("itens", [])  # Ajustar conforme estrutura do retorno
-    else:
-        print(f"Erro ao buscar itens do edital {edital_id}: {resposta.status_code}")
-        return []
-
-def carregar_dados_existentes():
-    """Carrega os dados existentes do arquivo Excel, se ele existir."""
-    if os.path.exists(NOME_ARQUIVO):
-        return pd.read_excel(NOME_ARQUIVO)
-    else:
-        return pd.DataFrame()  # Retorna um DataFrame vazio se o arquivo não existir
-
-def salvar_em_excel(dados):
-    """Salva os dados em um arquivo Excel."""
-    df = pd.DataFrame(dados)
-    df.to_excel(NOME_ARQUIVO, index=False)
-    print(f"Dados salvos em {NOME_ARQUIVO}")
-
-def processar_editais():
-    """Busca os editais e automaticamente busca os detalhes e itens de cada um, sem duplicar."""
-    # Carrega dados existentes
-    dados_existentes = carregar_dados_existentes()
-    ids_existentes = dados_existentes["Edital ID"].tolist() if not dados_existentes.empty else []
-
-    editais = buscar_todos_editais()
-    lista_dados = []
-    
-    for edital in editais:
-        edital_id = edital.get("identificador" or "id")  # Ajuste conforme necessário
-        if not edital_id or edital_id in ids_existentes:
-            continue  # Pula se o edital já foi processado
-        
-        detalhes = buscar_detalhes_edital(edital_id)
-        if detalhes:
-            # Coletando dados gerais do edital
-            dados_edital = {
-                "Edital ID": edital_id,
-                "Título": detalhes.get("titulo"),
-                "Órgão": detalhes.get("orgao"),
-                "Modalidade": detalhes.get("modalidade"),
-                "Data de Publicação": detalhes.get("dataPublicacao"),
-                "Status": detalhes.get("status"),
-                "Descrição": detalhes.get("descricao"),
-                "Processo": detalhes.get("processo"),
-                "Link": detalhes.get("link"),
-                "Data Limite": detalhes.get("dataLimite"),
-            }
-            
-            # Adiciona os dados gerais do edital como linha principal
-            lista_dados.append(dados_edital)
-            
-            # Busca os itens do edital e adiciona como linhas subsequentes
-            itens = buscar_itens_edital(edital_id)
-            for item in itens:
-                dados_item = {
-                    "Edital ID": edital_id,
-                    "Título": "",  # Deixamos em branco para não repetir os dados do edital
-                    "Órgão": "",
-                    "Modalidade": "",
-                    "Data de Publicação": "",
-                    "Status": "",
-                    "Descrição": "",
-                    "Processo": "",
-                    "Link": "",
-                    "Data Limite": "",
-                    "Item Descrição": item.get("descricao", ""),
-                    "Quantidade": item.get("quantidade", ""),
-                    "Valor Estimado": item.get("valorEstimado", ""),
-                }
-                lista_dados.append(dados_item)
-    
-    # Salvar os dados no Excel se houver novos
-    if lista_dados:
-        if dados_existentes.empty:
-            salvar_em_excel(lista_dados)
-        else:
-            # Adiciona novos dados à planilha existente
-            df_existente = pd.DataFrame(dados_existentes)
-            df_novo = pd.DataFrame(lista_dados)
-            df_final = pd.concat([df_existente, df_novo], ignore_index=True)
-            salvar_em_excel(df_final)
-    else:
-        print("Nenhum dado novo encontrado para salvar.")
-
-# Executa o script
-processar_editais()
+# Salva no Excel
+salvar_em_excel(editais)

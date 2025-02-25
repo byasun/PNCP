@@ -129,7 +129,7 @@ def buscar_editais():
                 pagina += 1 
                 
                 if pagina * tam_pagina > 10000:
-                    print("⚠️ Alcançado o limite de 10.000 resultados. Considere filtrar melhor a busca.")
+                    print("Alcançado o limite de 10.000 resultados. Considere filtrar melhor a busca.")
                     break
                 
             else:

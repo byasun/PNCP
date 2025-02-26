@@ -8,12 +8,13 @@ async def buscar_itens_de_edital(session, edital, semaforo):
     cnpj = edital.get("orgao_cnpj", "").strip()
     ano = edital.get("ano", "").strip()
     num_seq = edital.get("numero_sequencial", "").strip()
-    
+
     if not cnpj or not ano or not num_seq:
+        print(f"Edital {edital.get('id', 'N/A')} inválido para busca de itens.")
         return []
 
     url_base = f"{BASE_URL_ITENS}/{cnpj}/compras/{ano}/{num_seq}/itens"
-    tam_pagina = 5
+    tam_pagina = 50
     pagina = 1
     itens_lista = []
 
@@ -25,11 +26,11 @@ async def buscar_itens_de_edital(session, edital, semaforo):
 
             while tentativas < 5:
                 try:
-                    async with semaforo, session.get(url, headers=HEADERS) as resposta:
+                    async with semaforo, session.get(url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=60)) as resposta:
                         if resposta.status == 200:
                             dados = await resposta.json()
-                            if not dados or len(dados) < tam_pagina:  # Menos de 5 itens ou resposta vazia
-                                return itens_lista
+                            if not dados:
+                                return itens_lista  # Se não houver mais itens, paramos
 
                             for item in dados:
                                 itens_lista.append({
@@ -48,23 +49,24 @@ async def buscar_itens_de_edital(session, edital, semaforo):
                                     "Data Atualização": item.get("dataAtualizacao", "N/A")
                                 })
 
-                            pagina += 1  # Avançamos para a próxima página
+                            pagina += 1  # Avança para a próxima página
                             break  # Sai do loop de tentativas se deu certo
 
                         elif resposta.status == 429:
                             tentativas += 1
                             espera = min(2 ** tentativas, 60)
-                            print(f"Erro 429 ao buscar página {pagina}. Esperando {espera}s...")
+                            print(f"Erro 429 na página {pagina}. Tentativa {tentativas}/5. Esperando {espera}s...")
                             await asyncio.sleep(espera)
+
                         else:
-                            print(f"Erro {resposta.status} ao buscar página {pagina}.")
+                            print(f"Erro {resposta.status} ao buscar itens do edital {edital.get('id', 'N/A')} na página {pagina}.")
                             return itens_lista
 
                 except Exception as e:
-                    print(f"Erro inesperado na página {pagina}: {str(e)}")
+                    print(f"Erro inesperado ao buscar itens do edital {edital.get('id', 'N/A')} na página {pagina}: {str(e)}")
                     return itens_lista
 
     except Exception as e:
-        print(f"Erro ao buscar itens para o edital {edital.get('id', 'N/A')}: {str(e)}")
+        print(f"Erro crítico ao buscar itens do edital {edital.get('id', 'N/A')}: {str(e)}")
 
     return itens_lista
